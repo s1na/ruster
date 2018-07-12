@@ -1,0 +1,6 @@
+[package]
+name = "ruster"
+version = "0.1.0"
+authors = ["Sina Mahmoodi <itz.s1na@gmail.com>"]
+
+[dependencies]
