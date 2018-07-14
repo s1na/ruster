@@ -1,10 +1,24 @@
 extern crate wabt;
 extern crate wasmi;
 
+use std::env;
+use std::fs::File;
+use std::io::prelude::*;
 use wasmi::{ImportsBuilder, ModuleInstance, ModuleRef, NopExternals, RuntimeValue};
 
 fn main() {
-    let module = new_module();
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        return;
+    }
+
+    let path = &args[1];
+    let mut f = File::open(path).expect("file not found");
+    let mut contents = String::new();
+    f.read_to_string(&mut contents)
+        .expect("reading file failed");
+
+    let module = new_module(&contents[..]);
     let res = add(module, 3, 5);
 
     println!("Result of add: {:?}", res);
@@ -25,17 +39,8 @@ fn add(instance: ModuleRef, a: i32, b: i32) -> Result<i32, &'static str> {
     }
 }
 
-fn new_module() -> ModuleRef {
-    let wasm_binary: Vec<u8> = wabt::wat2wasm(
-        r#"
-            (module
-                (func $add (param i32 i32) (result i32)
-                    get_local 0
-                    get_local 1
-                    i32.add)
-                (export "add" (func $add)))
-         "#,
-    ).expect("failed to parse wat");
+fn new_module(wat: &str) -> ModuleRef {
+    let wasm_binary: Vec<u8> = wabt::wat2wasm(wat).expect("failed to parse wat");
 
     let module = wasmi::Module::from_buffer(&wasm_binary).expect("failed to load wasm");
 
