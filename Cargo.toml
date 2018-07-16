@@ -6,3 +6,5 @@ authors = ["Sina Mahmoodi <itz.s1na@gmail.com>"]
 [dependencies]
 wasmi = "0.3.0"
 wabt = "0.4"
+parity-wasm = "0.31"
+codegen = { git = "https://github.com/carllerche/codegen" }

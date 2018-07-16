@@ -1,9 +1,14 @@
+extern crate codegen;
+extern crate parity_wasm;
 extern crate wabt;
 extern crate wasmi;
 
+mod generate;
+mod extract;
+
+use self::generate::generate_rust;
+use self::extract::{get_exported_fns};
 use std::env;
-use std::fs::File;
-use std::io::prelude::*;
 use wasmi::{ImportsBuilder, ModuleInstance, ModuleRef, NopExternals, RuntimeValue};
 
 fn main() {
@@ -12,13 +17,13 @@ fn main() {
         return;
     }
 
-    let path = &args[1];
-    let mut f = File::open(path).expect("file not found");
-    let mut contents = String::new();
-    f.read_to_string(&mut contents)
-        .expect("reading file failed");
+    let module = parity_wasm::deserialize_file(&args[1]).expect("File to be deserialized");
+    let module = module.parse_names().expect("Names to be parsed");
+    let exported_fns = get_exported_fns(&module);
+    println!("Exported functions {:?}", exported_fns);
+    generate_rust(exported_fns);
 
-    let module = new_module(&contents[..]);
+    let module = new_module(module);
     let res = add(module, 3, 5);
 
     println!("Result of add: {:?}", res);
@@ -39,10 +44,8 @@ fn add(instance: ModuleRef, a: i32, b: i32) -> Result<i32, &'static str> {
     }
 }
 
-fn new_module(wat: &str) -> ModuleRef {
-    let wasm_binary: Vec<u8> = wabt::wat2wasm(wat).expect("failed to parse wat");
-
-    let module = wasmi::Module::from_buffer(&wasm_binary).expect("failed to load wasm");
+fn new_module(module: parity_wasm::elements::Module) -> ModuleRef {
+    let module = wasmi::Module::from_parity_wasm_module(module).expect("failed to load wasm");
 
     ModuleInstance::new(&module, &ImportsBuilder::default())
         .expect("failed to instantiate wasm module")
