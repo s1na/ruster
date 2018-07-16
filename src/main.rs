@@ -25,7 +25,6 @@ fn main() {
 
     let module = new_module(module);
     let res = add(module, 3, 5);
-
     println!("Result of add: {:?}", res);
 }
 
