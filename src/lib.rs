@@ -11,12 +11,12 @@ use self::generate::generate_rust;
 use self::extract::{get_exported_fns};
 use wasmi::{ImportsBuilder, ModuleInstance, ModuleRef, NopExternals, RuntimeValue};
 
-pub fn run(filename: &str) -> Result<(), Box<Error>> {
-    let module = parity_wasm::deserialize_file(&filename).expect("File to be deserialized");
+pub fn run(filename: &str, out_path: &str) -> Result<(), Box<Error>> {
+    let module = parity_wasm::deserialize_file(&filename)?;
     let module = module.parse_names().expect("Names to be parsed");
     let exported_fns = get_exported_fns(&module);
     println!("Exported functions {:?}", exported_fns);
-    generate_rust(exported_fns);
+    generate_rust(exported_fns, out_path);
 
     let module = new_module(module);
     let res = add(module, 3, 5);
