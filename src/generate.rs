@@ -2,7 +2,7 @@ extern crate codegen;
 extern crate parity_wasm;
 extern crate wasmi;
 
-use extract::Function;
+use module::Function;
 use parity_wasm::elements::ValueType;
 use std::fs::File;
 use std::io::prelude::*;
