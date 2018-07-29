@@ -2,47 +2,31 @@ extern crate codegen;
 extern crate parity_wasm;
 extern crate wasmi;
 
-use module::Function;
+use module::{Function, Module};
 use parity_wasm::elements::ValueType;
-use std::fs::File;
-use std::io::prelude::*;
-use std::path::Path;
+use std::error::Error;
 
-pub fn generate_rust(fns: Vec<Function>, out_path: &str) {
+pub fn generate_rust(module: Module) -> Result<String, Box<Error>> {
     let mut scope = codegen::Scope::new();
+    generate_prelude(&mut scope);
+    let mut mod_impl = generate_module(&mut scope);
 
-    scope.import("wasmi", "NopExternals");
-    scope.import("wasmi", "RuntimeValue");
-    scope.import("wasmi", "ModuleRef");
-    scope.import("wasmi", "ModuleInstance");
-    scope.import("wasmi", "ImportsBuilder");
-    scope.import("std::error", "Error");
+    for f in module.get_exported_fns().iter() {
+        let fn_def = generate_fn(f);
+        mod_impl.push_fn(fn_def);
+    }
 
-    let mut mod_struct = codegen::Struct::new("Module");
-    mod_struct.vis("pub");
-    mod_struct.field("instance", "ModuleRef");
-    let scope = scope.push_struct(mod_struct);
+    scope.push_impl(mod_impl);
 
-    let mut mod_impl = codegen::Impl::new("Module");
-    let mut mod_new = codegen::Function::new("new");
-    mod_new.vis("pub");
-    mod_new.arg("filename", "&str");
-    mod_new.ret("Result<Module, Box<Error>>");
-    let mut mod_new_block = codegen::Block::new("");
-    mod_new_block.line(
-        "
-        let module = parity_wasm::deserialize_file(&filename)?;
-        let module = wasmi::Module::from_parity_wasm_module(module)?;
-        let instance = ModuleInstance::new(&module, &ImportsBuilder::default())?
-            .assert_no_start();
-
-        Ok(Module { instance })
-        ",
+    let res = format!(
+        "extern crate wasmi;\nextern crate parity_wasm;\n{}",
+        scope.to_string()
     );
-    mod_new.push_block(mod_new_block);
-    mod_impl.push_fn(mod_new);
 
-    let f = &fns[0];
+    Ok(res)
+}
+
+fn generate_fn(f: &Function) -> codegen::Function {
     let return_type = get_type(f.return_type, true);
     let arg_types = f.arg_types.iter().map(|t| get_type(*t, false));
     let block = generate_block(f);
@@ -58,20 +42,7 @@ pub fn generate_rust(fns: Vec<Function>, out_path: &str) {
 
     fn_def.push_block(block);
 
-    mod_impl.push_fn(fn_def);
-    scope.push_impl(mod_impl);
-    /*let mut fn_def_str = String::new();
     fn_def
-        .fmt(false, &mut codegen::Formatter::new(&mut fn_def_str))
-        .unwrap();
-
-    scope.raw(&fn_def_str[..]);*/
-
-    let path = Path::new(out_path);
-    let mut file = File::create(&path).expect("File to be created");
-    file.write_all("extern crate wasmi;\nextern crate parity_wasm;\n".as_bytes());
-    file.write_all(scope.to_string().as_bytes())
-        .expect("Content to be written to file");
 }
 
 fn generate_block(f: &Function) -> codegen::Block {
@@ -114,6 +85,43 @@ fn generate_block(f: &Function) -> codegen::Block {
     b.line(rest);
 
     b
+}
+
+fn generate_prelude(scope: &mut codegen::Scope) {
+    scope.import("wasmi", "NopExternals");
+    scope.import("wasmi", "RuntimeValue");
+    scope.import("wasmi", "ModuleRef");
+    scope.import("wasmi", "ModuleInstance");
+    scope.import("wasmi", "ImportsBuilder");
+    scope.import("std::error", "Error");
+}
+
+fn generate_module(scope: &mut codegen::Scope) -> codegen::Impl {
+    let mut mod_struct = codegen::Struct::new("Module");
+    mod_struct.vis("pub");
+    mod_struct.field("instance", "ModuleRef");
+    scope.push_struct(mod_struct);
+
+    let mut mod_impl = codegen::Impl::new("Module");
+    let mut mod_new = codegen::Function::new("new");
+    mod_new.vis("pub");
+    mod_new.arg("filename", "&str");
+    mod_new.ret("Result<Module, Box<Error>>");
+    let mut mod_new_block = codegen::Block::new("");
+    mod_new_block.line(
+        "
+        let module = parity_wasm::deserialize_file(&filename)?;
+        let module = wasmi::Module::from_parity_wasm_module(module)?;
+        let instance = ModuleInstance::new(&module, &ImportsBuilder::default())?
+            .assert_no_start();
+
+        Ok(Module { instance })
+        ",
+    );
+    mod_new.push_block(mod_new_block);
+    mod_impl.push_fn(mod_new);
+
+    mod_impl
 }
 
 fn get_type(t: ValueType, result: bool) -> codegen::Type {
