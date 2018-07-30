@@ -9,6 +9,7 @@ use std::error::Error;
 pub fn generate_rust(module: Module) -> Result<String, Box<Error>> {
     let mut scope = codegen::Scope::new();
     generate_prelude(&mut scope);
+    generate_error_type(&mut scope);
     let mut mod_impl = generate_module(&mut scope);
 
     for f in module.get_exported_fns().iter() {
@@ -65,24 +66,17 @@ fn generate_block(f: &Function) -> codegen::Block {
     b.line(l);
 
     let invoke = format!(
-        "let res = self.instance.invoke_export(\"{}\", &params, &mut NopExternals);",
-        f.name
+        "
+        self.instance.invoke_export(\"{}\", &params, &mut NopExternals)?
+        .ok_or(Box::from(Error::new(\"returned value is empty\")))
+        .and_then(|v| match v {{
+            RuntimeValue::{:?}(t) => Ok(t),
+            _ => Err(Box::from(Error::new(\"returned value has invalid type\")))
+        }})",
+        f.name, f.return_type
     );
 
-    let rest = "
-        match res {
-            Ok(r) => match r {
-                Some(runtime_value) => match runtime_value {
-                    RuntimeValue::I32(v) => Ok(v),
-                    _ => Err(\"invalid type\"),
-                },
-                None => Err(\"emtpy result\"),
-            },
-            Err(_) => Err(\"wasmi error\"),
-        }";
-
     b.line(invoke);
-    b.line(rest);
 
     b
 }
@@ -93,7 +87,7 @@ fn generate_prelude(scope: &mut codegen::Scope) {
     scope.import("wasmi", "ModuleRef");
     scope.import("wasmi", "ModuleInstance");
     scope.import("wasmi", "ImportsBuilder");
-    scope.import("std::error", "Error");
+    scope.import("std", "error");
 }
 
 fn generate_module(scope: &mut codegen::Scope) -> codegen::Impl {
@@ -106,7 +100,7 @@ fn generate_module(scope: &mut codegen::Scope) -> codegen::Impl {
     let mut mod_new = codegen::Function::new("new");
     mod_new.vis("pub");
     mod_new.arg("filename", "&str");
-    mod_new.ret("Result<Module, Box<Error>>");
+    mod_new.ret("Result<Module, Box<error::Error>>");
     let mut mod_new_block = codegen::Block::new("");
     mod_new_block.line(
         "
@@ -127,7 +121,7 @@ fn generate_module(scope: &mut codegen::Scope) -> codegen::Impl {
 fn get_type(t: ValueType, result: bool) -> codegen::Type {
     let mut template = String::from("{}");
     if result {
-        template = String::from("Result<{}, &'static str>")
+        template = String::from("Result<{}, Box<error::Error>>")
     }
 
     match t {
@@ -136,4 +130,38 @@ fn get_type(t: ValueType, result: bool) -> codegen::Type {
         ValueType::F32 => codegen::Type::from(template.replace("{}", "f32")),
         ValueType::F64 => codegen::Type::from(template.replace("{}", "f64")),
     }
+}
+
+fn generate_error_type(scope: &mut codegen::Scope) {
+    let code = "
+use std::fmt;
+
+#[derive(Debug, Clone)]
+pub struct Error {
+    msg: String
+}
+
+impl Error {
+    fn new(m: &str) -> Error {
+        Error{msg: m.to_string()}
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, \"{}\", self.msg)
+    }
+}
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        &self.msg
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        None
+    }
+}
+";
+    scope.raw(code);
 }

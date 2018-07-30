@@ -3,7 +3,6 @@ extern crate wasmi;
 
 use parity_wasm::elements::{External, FunctionType, Internal, Type, ValueType};
 use std::error::Error;
-/*use wasmi::{ImportsBuilder, ModuleInstance, ModuleRef};*/
 
 pub struct Module {
     pwasm_module: parity_wasm::elements::Module,
