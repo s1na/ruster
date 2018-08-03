@@ -35,7 +35,21 @@ impl Global {
     fn gen_block(&self) -> codegen::Block {
         let mut b = codegen::Block::new("");
 
-        let invoke = format!("0");
+        let invoke = format!(
+            "
+            self.instance.export_by_name(\"{}\")
+                .ok_or(Box::from(ruster::error::Error::new(\"global not found\")))
+                .and_then(|e| match e {{
+                    wasmi::ExternVal::Global(r) => match r.get() {{
+                        RuntimeValue::{:?}(t) => Ok(t),
+                        _ => Err(Box::from(ruster::error::Error::new(\"returned value has invalid type\")))
+                    }},
+                    _ => Err(Box::from(ruster::error::Error::new(\"export is not global\"))),
+                }})
+            ",
+            &self.name[..],
+            self.t,
+            );
 
         b.line(invoke);
 
