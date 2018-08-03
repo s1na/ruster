@@ -8,3 +8,4 @@ wasmi = "0.3.0"
 wabt = "0.4"
 parity-wasm = "0.31"
 codegen = { git = "https://github.com/carllerche/codegen" }
+itertools = "0.7.3"

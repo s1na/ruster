@@ -2,7 +2,7 @@ extern crate codegen;
 extern crate parity_wasm;
 extern crate wasmi;
 
-use module::{Function, Module};
+use module::Module;
 use parity_wasm::elements::ValueType;
 use std::error::Error;
 
@@ -13,7 +13,7 @@ pub fn generate_rust(module: Module) -> Result<String, Box<Error>> {
     let mut mod_impl = generate_module(&mut scope);
 
     for f in module.get_exported_fns().iter() {
-        let fn_def = generate_fn(f);
+        let fn_def = f.to_rust();
         mod_impl.push_fn(fn_def);
     }
 
@@ -25,60 +25,6 @@ pub fn generate_rust(module: Module) -> Result<String, Box<Error>> {
     );
 
     Ok(res)
-}
-
-fn generate_fn(f: &Function) -> codegen::Function {
-    let return_type = get_type(f.return_type, true);
-    let arg_types = f.arg_types.iter().map(|t| get_type(*t, false));
-    let block = generate_block(f);
-
-    let mut fn_def = codegen::Function::new(&f.name[..]);
-    fn_def.vis("pub");
-    fn_def.ret(return_type);
-    fn_def.arg_ref_self();
-
-    for (i, t) in arg_types.enumerate() {
-        fn_def.arg(&format!("a{}", i)[..], t);
-    }
-
-    fn_def.push_block(block);
-
-    fn_def
-}
-
-fn generate_block(f: &Function) -> codegen::Block {
-    let mut b = codegen::Block::new("");
-
-    let mut params = Vec::new();
-
-    for (i, t) in f.arg_types.iter().enumerate() {
-        let t_str = match t {
-            ValueType::I32 => "I32",
-            ValueType::I64 => "I64",
-            ValueType::F32 => "F32",
-            ValueType::F64 => "F64",
-        };
-
-        params.push(format!("RuntimeValue::{}(a{})", t_str, i));
-    }
-
-    let l = format!("let params = [{}];", params.join(", "));
-    b.line(l);
-
-    let invoke = format!(
-        "
-        self.instance.invoke_export(\"{}\", &params, &mut NopExternals)?
-        .ok_or(Box::from(Error::new(\"returned value is empty\")))
-        .and_then(|v| match v {{
-            RuntimeValue::{:?}(t) => Ok(t),
-            _ => Err(Box::from(Error::new(\"returned value has invalid type\")))
-        }})",
-        f.name, f.return_type
-    );
-
-    b.line(invoke);
-
-    b
 }
 
 fn generate_prelude(scope: &mut codegen::Scope) {
@@ -116,20 +62,6 @@ fn generate_module(scope: &mut codegen::Scope) -> codegen::Impl {
     mod_impl.push_fn(mod_new);
 
     mod_impl
-}
-
-fn get_type(t: ValueType, result: bool) -> codegen::Type {
-    let mut template = String::from("{}");
-    if result {
-        template = String::from("Result<{}, Box<error::Error>>")
-    }
-
-    match t {
-        ValueType::I32 => codegen::Type::from(template.replace("{}", "i32")),
-        ValueType::I64 => codegen::Type::from(template.replace("{}", "i64")),
-        ValueType::F32 => codegen::Type::from(template.replace("{}", "f32")),
-        ValueType::F64 => codegen::Type::from(template.replace("{}", "f64")),
-    }
 }
 
 fn generate_error_type(scope: &mut codegen::Scope) {

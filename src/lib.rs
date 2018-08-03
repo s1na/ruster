@@ -2,9 +2,11 @@ extern crate codegen;
 extern crate parity_wasm;
 extern crate wabt;
 extern crate wasmi;
+extern crate itertools;
 
 mod generate;
 mod module;
+mod function;
 
 use std::error::Error;
 use self::generate::generate_rust;

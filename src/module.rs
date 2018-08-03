@@ -1,7 +1,8 @@
 extern crate parity_wasm;
 extern crate wasmi;
 
-use parity_wasm::elements::{External, FunctionType, Internal, Type, ValueType};
+use function::Function;
+use parity_wasm::elements::{External, FunctionType, Internal, Type};
 use std::error::Error;
 
 pub struct Module {
@@ -49,6 +50,8 @@ impl Module {
 
         exported_fns
     }
+
+    pub fn get_exported_globals(&self) {}
 
     fn get_exported_fn(&self, name: &str, i: usize) -> Function {
         let imported_fns_len = self.get_imported_fns_len();
@@ -100,11 +103,4 @@ impl Module {
             None => 0,
         }
     }
-}
-
-#[derive(Debug)]
-pub struct Function {
-    pub name: String,
-    pub arg_types: Vec<ValueType>,
-    pub return_type: ValueType,
 }
