@@ -52,10 +52,10 @@ impl Function {
         let invoke = format!(
             "
             self.instance.invoke_export(\"{}\", &params, &mut NopExternals)?
-            .ok_or(Box::from(Error::new(\"returned value is empty\")))
+            .ok_or(Box::from(ruster::error::Error::new(\"returned value is empty\")))
             .and_then(|v| match v {{
                 RuntimeValue::{:?}(t) => Ok(t),
-                _ => Err(Box::from(Error::new(\"returned value has invalid type\")))
+                _ => Err(Box::from(ruster::error::Error::new(\"returned value has invalid type\")))
             }})",
             self.name, self.return_type
         );
