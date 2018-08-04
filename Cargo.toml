@@ -9,3 +9,4 @@ wabt = "0.4"
 parity-wasm = "0.31"
 codegen = { git = "https://github.com/carllerche/codegen" }
 itertools = "0.7.3"
+clap = "2.32.0"
